@@ -14,7 +14,7 @@ import java.io.IOException;
 public class Main {
 
     /* numero de vezes que cada problema é executado, para minimizar variações aleatórias */
-    public static final int N_EXECS = 10;
+    public static final int N_EXECS = 50;
 
     private static void runProblem(AccessPolicy policy, java.io.Writer writer) throws IOException {
         writer.write("readers;writers;time (ms)\n");
