@@ -12,7 +12,6 @@ import java.util.List;
  */
 public class ReadersWritersProblem {
 
-    Database db;
     List<Thread> threads;
 
     /**
@@ -27,7 +26,7 @@ public class ReadersWritersProblem {
         final Database db = new Database("bd.txt", policy);
 
         // Cria os leitores e escritores
-        threads = new ArrayList<Thread>(nReaders + nWriters);
+        threads = new ArrayList<>(nReaders + nWriters);
         for (int i = 0; i < nReaders; i++) {
             threads.add(new Reader(db));
         }
@@ -39,6 +38,7 @@ public class ReadersWritersProblem {
         for (int i = 0; i < threads.size() - 1; i++) {
             int randomPos = (int) (Math.random() * (threads.size() - i)) + i;
 
+            // troca i com randomPos
             Thread aux = threads.get(i);
             threads.set(i, threads.get(randomPos));
             threads.set(randomPos, aux);

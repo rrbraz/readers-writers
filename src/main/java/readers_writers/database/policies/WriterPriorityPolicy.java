@@ -4,51 +4,38 @@ import java.util.concurrent.Semaphore;
 
 /**
  * Política de acesso que dá prioridade aos Writers
- * baseado em Courtois, P. J., Heymans, F., & Parnas, D. L. (1971). Concurrent control with “readers” and “writers.”
+ * baseado em Samuel Tardieu - The third readers-writers problem (2011)
+ * https://rfc1149.net/blog/2011/01/07/the-third-readers-writers-problem/
  */
 public class WriterPriorityPolicy implements AccessPolicy {
 
-    /* número de readers acessando o database */
-    private int readcount = 0;
-    /* número de writers acessando o database */
-    private int writecount = 0;
+    /** Semáforo para controlar o recurso ao database **/
+    private Semaphore accessMutex = new Semaphore(1);
 
-    // permissao de alterar readcount
-    private Semaphore mutexReadcount = new Semaphore(1);
+    /** Semáforo para controlar o acesso ao readCount **/
+    private Semaphore readersMutex = new Semaphore(1);
 
-    // permissão de alterar writecount
-    private Semaphore mutexWritecount = new Semaphore(1);
+    /** semaforo para controlar a ordem de espera **/
+    private Semaphore orderMutex = new Semaphore(1);
 
-    // permissao de entrada de writers
-    private Semaphore w = new Semaphore(1);
+    /** Conta os readers na região crítica **/
+    int readCount = 0;
 
-    // permissão de entrada de readers
-    private Semaphore r = new Semaphore(1);
-
-    // mutex de controle para que garantir que não há readers e writers disputando o r.acquire
-    private Semaphore controlMutex = new Semaphore(1);
 
     @Override
     public void getReadPermission() {
         try {
-            // bloqueia o acesso ao bloco seguinte, garantindo que há no máximo uma thread aguardando o recurso r
-            controlMutex.acquire();
-            // aguarda permissao de novos reader
-            r.acquire();
+            // Lembra a ordem de chegada
+            orderMutex.acquire();
 
-            // obtem permisao de alterar readcount
-            mutexReadcount.acquire();
-            readcount++;
-            if (readcount == 1)
-                // bloqueia acesso de writers ao db enquanto houver readers
-                w.acquire();
-            // libera permissao de alterar readcount
-            mutexReadcount.release();
+            // Vamos alterar o readCount
+            readersMutex.acquire();
+            readCount++;
+            if (readCount == 1)
+                accessMutex.acquire();
 
-            // libera permissao de entrada de novo reader
-            r.release();
-
-            controlMutex.release();
+            readersMutex.release();
+            orderMutex.release();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -57,15 +44,13 @@ public class WriterPriorityPolicy implements AccessPolicy {
     @Override
     public void releaseReadPermission() {
         try {
-            // obtem permissao de alterar readcount
-            mutexReadcount.acquire();
-            readcount--;
-            if (readcount == 0)
-                // era o ultimo reader, permite que writers acessem o recurso
-                w.release();
-
-            // libera permissao de alterar readcount
-            mutexReadcount.release();
+            // Vamos alterar o readCount
+            readersMutex.acquire();
+            readCount--;
+            if (readCount == 0)
+                // libera o database
+                accessMutex.release();
+            readersMutex.release();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -74,17 +59,12 @@ public class WriterPriorityPolicy implements AccessPolicy {
     @Override
     public void getWritePermission() {
         try {
-            // obtem permissao de alterar writecount
-            mutexWritecount.acquire();
-            writecount++;
-            if (writecount == 1)
-                // bloqueia entrada de novos readers, pois writers tem prioridade
-                r.acquire();
+            // Lembra a ordem de chegada
+            orderMutex.acquire();
 
-            mutexWritecount.release();
-
-            // espera permissao pra escrever
-            w.acquire();
+            // Obtém acesso ao database
+            accessMutex.acquire();
+            orderMutex.release();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -92,21 +72,7 @@ public class WriterPriorityPolicy implements AccessPolicy {
 
     @Override
     public void releaseWritePermission() {
-        try {
-            // libera permissão de escrever
-            w.release();
-
-            // obtem permissao de alterar writecount
-            mutexWritecount.acquire();
-            writecount--;
-            if (writecount == 0)
-                // não tem mais nenhum writer, então libera entrada de readers
-                r.release();
-
-            // libera permissao de alterar writecount
-            mutexWritecount.release();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        // libera o database
+        accessMutex.release();
     }
 }
